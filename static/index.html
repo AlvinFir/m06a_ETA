@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>國道預測系統</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { margin: 0; display: flex; font-family: "Microsoft JhengHei"; height: 100vh; }
+        #panel { width: 350px; padding: 20px; background: #fff; box-shadow: 2px 0 10px rgba(0,0,0,0.1); z-index: 1000; }
+        #map { flex-grow: 1; }
+        .input-group { margin-bottom: 15px; }
+        input, button { width: 100%; padding: 10px; margin-top: 5px; box-sizing: border-box; }
+        button { background: #28a745; color: white; border: none; cursor: pointer; font-weight: bold; }
+        #result { margin-top: 20px; display: none; padding: 15px; background: #f0f7ff; border-left: 5px solid #007bff; }
+    </style>
+</head>
+<body>
+    <div id="panel">
+        <h2>國道行程預測</h2>
+        <div class="input-group">
+            <label>起點交流道</label>
+            <input type="text" id="startInput" list="startOptions" placeholder="請搜尋起點...">
+            <datalist id="startOptions"></datalist>
+            <input type="hidden" id="startId">
+        </div>
+        <div class="input-group">
+            <label>終點交流道</label>
+            <input type="text" id="endInput" list="endOptions" placeholder="請搜尋終點...">
+            <datalist id="endOptions"></datalist>
+            <input type="hidden" id="endId">
+        </div>
+        <div class="input-group">
+            <label>出發時間</label>
+            <input type="datetime-local" id="depTime">
+        </div>
+        <button onclick="runPrediction()">開始預測</button>
+        <div id="result"></div>
+    </div>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const map = L.map('map').setView([23.6, 121.0], 8);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        let pathLayer = null;
+        let startMap = {}, endMap = {};
+
+        async function init() {
+            const res = await fetch('/gantries');
+            const data = await res.json();
+            const sList = document.getElementById('startOptions');
+            const eList = document.getElementById('endOptions');
+            data.forEach(g => {
+                const sLabel = `${g.起點交流道} (${g.GantryID})`;
+                const eLabel = `${g.迄點交流道} (${g.GantryID})`;
+                sList.innerHTML += `<option value="${sLabel}">`;
+                eList.innerHTML += `<option value="${eLabel}">`;
+                startMap[sLabel] = g.GantryID;
+                endMap[eLabel] = g.GantryID;
+            });
+        }
+
+        function setupLink(inputId, hiddenId, mapObj) {
+            document.getElementById(inputId).addEventListener('input', function() {
+                document.getElementById(hiddenId).value = mapObj[this.value] || this.value;
+            });
+        }
+
+        async function runPrediction() {
+            const payload = {
+                start_id: document.getElementById('startId').value,
+                end_id: document.getElementById('endId').value,
+                departure_time: document.getElementById('depTime').value
+            };
+            const response = await fetch('/predict', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const res = await response.json();
+            if(!response.ok) return alert(res.detail);
+
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('result').innerHTML = `<b>${res.start_name} → ${res.end_name}</b><br>里程: ${res.total_km}km<br>耗時: ${res.total_minutes}分<br>費用: NT$${res.estimated_toll}`;
+            
+            if(pathLayer) map.removeLayer(pathLayer);
+            const latlngs = res.path_details.map(d => [d.lat, d.lng]);
+            pathLayer = L.polyline(latlngs, {color: 'red', weight: 5}).addTo(map);
+            map.fitBounds(pathLayer.getBounds());
+        }
+
+        window.onload = () => { init(); setupLink('startInput', 'startId', startMap); setupLink('endInput', 'endId', endMap); };
+    </script>
+</body>
+</html>
