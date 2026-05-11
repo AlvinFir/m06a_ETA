@@ -26,9 +26,6 @@ pip install -r requirements.txt
 ```
 *註：模型檔案較大，已透過 Git LFS 託管，複製專案時請確保已安裝 git-lfs。*
 
-## 📝 修改紀錄
--   已完成全域 Hash 值更換：將舊有的 `2738a0f0` 更新為 `8d8097bc` 以對應最新的模型版本。
-
 ## 🏃 執行方式
 於專案根目錄執行以下指令啟動 FastAPI 服務：
 ```bash
